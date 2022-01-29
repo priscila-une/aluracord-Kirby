@@ -1,25 +1,78 @@
-import { Box, Text, TextField, Image, Button } from '@skynexui/components';
+import { Box, Text, TextField, Image, Button, Icon } from '@skynexui/components';
 import React from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { useRouter } from 'next/router';
 import appConfig from '../config.json';
+import { ButtonSendSticker } from '../src/components/ButtonSendSticker';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_AWON_KEY = process.env.NEXT_PUBLIC_SUPABASE_AWON_KEY;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_AWON_KEY)
+
+function escutaMensagensEmTempoReal(adicionaMensagem) {
+    return supabaseClient
+      .from('mensagens')
+      .on('INSERT', (respostaLive) => {
+        adicionaMensagem(respostaLive.new);
+      })
+      .subscribe();
+  }
 
 export default function ChatPage() {
-    // Sua lógica vai aqui
+    const roteamento = useRouter();
+    const usuarioLogado = roteamento.query.username;
+    //console.log('roteamento.query: ' + roteamento.query)
+    //console.log('Usuario logado: ' + usuarioLogado)
     const [message, setMessage] = React.useState('');
     const [listaDeMensagens, setListaDeMensagens] = React.useState([]);
 
+    React.useEffect(() => {
+        supabaseClient
+        .from('mensagens')
+        .select('*')
+        .order('id', { ascending: false})
+        .then(({ data }) => {
+            console.log('Dados da consulta:', data);
+            setListaDeMensagens(data);
+        });
+
+        const subscription = escutaMensagensEmTempoReal((novaMensagem) => {
+            console.log('Nova mensagem:', novaMensagem);
+            console.log('listaDeMensagens:', listaDeMensagens);
+            
+            setListaDeMensagens((valorAtualDaLista) => {
+              console.log('valorAtualDaLista:', valorAtualDaLista);
+              return [
+                novaMensagem,
+                ...valorAtualDaLista,
+              ]
+            });
+          });
+      
+          return () => {
+            subscription.unsubscribe();
+          }
+    }, []);
+
     function handleNovaMensagem(novaMensagem){
       const mensagem ={
-        id: listaDeMensagens.length + 1,
-        de: 'priscila-une',
+        //id: listaDeMensagens.length + 1,
+        de: usuarioLogado,
         texto: novaMensagem,
       };
       
-      setListaDeMensagens([
-        mensagem,
-        ...listaDeMensagens,
-      ]);
-
-      setMessage('');
+      supabaseClient
+      .from('mensagens')
+      .insert([
+        // Tem que ser um objeto com os MESMOS CAMPOS que você escreveu no supabase
+        mensagem
+      ])
+      .then(({ data }) => {
+        console.log('Criando mensagem: ', data);
+      
+    });
+      
+        setMessage('');
     }
  
     return (
@@ -108,10 +161,13 @@ export default function ChatPage() {
                             e.preventDefault();
                             handleNovaMensagem(message);
                             }}
-                            label='Enviar'
+                            iconName='FaAngleRight'
                             styleSheet={{
-                            maxWidth: '200px',
-                            height: '50px',
+                            minWidth: '50px',
+                            minHeight: '50px',
+                            borderRadius: '50%',
+                            padding: '0 3px 0 0',
+                            marginRight: '12px',
                             
                           }}
             
@@ -122,6 +178,10 @@ export default function ChatPage() {
                             mainColorStrong: appConfig.theme.colors.primary[500],
                           }}
                         />
+                        <ButtonSendSticker 
+                            onStickerClick={(sticker) => {
+                                handleNovaMensagem(`:sticker: ${sticker}`)
+                            }}/>
                     </Box>
                 </Box>
             </Box>
@@ -148,7 +208,28 @@ function Header() {
 }
 
 function MessageList(props) {
-    console.log(props);
+    
+    function HandleDeletaMensagem(id){
+        const novaLista = props.mensagens.filter((mensagemFiltrada) => { 
+            if(mensagemFiltrada.id !== id){
+                return mensagemFiltrada;
+            }
+        })
+
+        supabaseClient
+            .from("mensagens")
+            .delete()
+            .match({id : id})
+            .then((data) => {
+                console.log(data)
+            });
+
+        props.setListaDeMensagens([
+            ...novaLista
+        ]);
+    }
+
+
     return (
         <Box
             tag="ul"
@@ -198,13 +279,35 @@ function MessageList(props) {
                             fontSize: '10px',
                             marginLeft: '8px',
                             color: appConfig.theme.colors.neutrals[300],
+                            
                         }}
                         tag="span"
                     >
                         {(new Date().toLocaleDateString())}
+                    <Icon 
+                        label="Icon Component"
+                        name="FaTrash"
+                        size='20px'
+                        onClick={ ()=>{
+                            HandleDeletaMensagem(mensagem.id)
+                        }}
+                        styleSheet={{
+                            display: 'inline-block',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                            marginLeft: '8px',
+                            color: appConfig.theme.colors.neutrals[300],
+                        }}
+                    />
                     </Text>
                 </Box>
-                {mensagem.texto}
+                {mensagem.texto.startsWith(':sticker:') ? 
+                (
+                    <Image src={mensagem.texto.replace(':sticker:', '')} />
+                ) : 
+                (
+                    mensagem.texto
+                )}
             </Text>
           );
       })}
