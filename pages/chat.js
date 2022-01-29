@@ -114,7 +114,7 @@ export default function ChatPage() {
                     }}
                 >
 
-                  <MessageList mensagens={listaDeMensagens} />
+                  <MessageList mensagens={listaDeMensagens} setListaDeMensagens={setListaDeMensagens} />
                     
                     {/*{listaDeMensagens.map((mensagemAtual) => {
                       return(
