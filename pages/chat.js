@@ -9,6 +9,17 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_AWON_KEY = process.env.NEXT_PUBLIC_SUPABASE_AWON_KEY;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_AWON_KEY)
 
+export const getServerSideProps = async () => {
+    const { SUPABASE_AWON_KEY, SUPABASE_URL } = process.env;
+  
+    return {
+      props: {
+        SUPABASE_AWON_KEY,
+        SUPABASE_URL,
+      },
+    };
+};
+
 function escutaMensagensEmTempoReal(adicionaMensagem) {
     return supabaseClient
       .from('mensagens')
